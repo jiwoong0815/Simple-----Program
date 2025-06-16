@@ -1,0 +1,16 @@
+[
+    {
+        "id": "96a60658-3f50-4ee0-96e0-ccc9096af386",
+        "name": "샘플 병원 (A단가)",
+        "price_tier": "A",
+        "contact": "02-123-0001",
+        "custom_price_profile_id": null
+    },
+    {
+        "id": "82dae921-226d-4197-b164-170309a78921",
+        "name": "샘플 대리점 (일반가)",
+        "price_tier": "DEALER",
+        "contact": "031-456-0002",
+        "custom_price_profile_id": null
+    }
+]

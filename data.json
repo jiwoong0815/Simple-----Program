@@ -1,4 +1,16 @@
-{
-    "companies": [],
-    "items": []
-}
+[
+    {
+        "id": "84945834-fb79-46c4-9309-6f8914158036",
+        "name": "다해줬잖아",
+        "price_tier": "A",
+        "contact": "-",
+        "custom_price_profile_id": null
+    },
+    {
+        "id": "190017dd-94e8-47ad-a4df-adfc4f5d20b7",
+        "name": "지웅메디컬",
+        "price_tier": "PURCHASE",
+        "contact": "-",
+        "custom_price_profile_id": "ae93e86a-2066-4edd-9477-3fadfd92fe4c"
+    }
+]
