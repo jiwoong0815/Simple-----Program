@@ -73,21 +73,55 @@ def get_initial_companies() -> List[Company]:
 
 def load_companies() -> List[Company]:
     """
-    Loads company data from the user-specific data directory.
-    If not found, creates initial data and saves it there.
+    Loads company data. Tries user data dir, then bundled file (if exists), 
+    then creates initial data.
     """
     user_file_path = get_user_data_path(COMPANY_DATA_FILE)
+    path_to_load_from = None
+    loaded_from_bundle_and_copied = False
 
-    if not os.path.exists(user_file_path):
-        print(f"'{user_file_path}'을 찾을 수 없어 초기 데이터로 생성합니다.")
+    if os.path.exists(user_file_path):
+        path_to_load_from = user_file_path
+        # print(f"Loading company data from user path: {user_file_path}")
+    else:
+        # Try to load from bundle if it exists and copy to user dir for future use
+        if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+            bundle_dir = get_bundle_dir()
+            bundled_file_path = os.path.join(bundle_dir, COMPANY_DATA_FILE)
+            if os.path.exists(bundled_file_path):
+                # print(f"Loading company data from bundled path: {bundled_file_path} and copying to user dir.")
+                try:
+                    os.makedirs(os.path.dirname(user_file_path), exist_ok=True)
+                    shutil.copy2(bundled_file_path, user_file_path)
+                    path_to_load_from = user_file_path # Load from the new copy in user dir
+                    loaded_from_bundle_and_copied = True
+                except Exception as e_copy:
+                    print(f"Error copying bundled company data to user dir: {e_copy}. Will try to load directly from bundle.")
+                    path_to_load_from = bundled_file_path # Fallback to loading directly from bundle
+            # else: print(f"Bundled company data file not found at {bundled_file_path}")
+        
+        if not path_to_load_from: # Not in user dir, and not found/loaded from bundle
+            print(f"'{user_file_path}' 및 번들에서 회사 데이터를 찾을 수 없어 초기 데이터로 생성합니다.")
+            initial_companies = get_initial_companies()
+            save_companies(initial_companies) # This will save to user_file_path
+            return initial_companies
+
+    # If path_to_load_from is still None here, it means it wasn't found in user or bundle,
+    # and initial data should have been created and returned. This block should only execute if a file is to be loaded.
+    if not path_to_load_from:
+         # This case should ideally be covered by the logic above creating initial data.
+         # If somehow reached, return empty or re-create initial.
+        print(f"회사 데이터 파일을 찾을 수 없습니다. 초기 데이터로 다시 시도합니다.")
         initial_companies = get_initial_companies()
-        # Save_companies will now save to the user_file_path
-        save_companies(initial_companies) 
+        save_companies(initial_companies)
         return initial_companies
 
     try:
-        with open(user_file_path, 'r', encoding='utf-8') as f:
+        # If we loaded from bundle and copied, we are reading the copy from user_file_path.
+        # If we fell back to loading directly from bundle (due to copy error), path_to_load_from is bundled_file_path.
+        with open(path_to_load_from, 'r', encoding='utf-8') as f:
             data = json.load(f)
+>>>>>>> REPLACE
 
             # 이전 data.json은 {"companies": [...], "items": [...]} 구조였을 수 있음
             # 새 구조는 그냥 [...] 리스트 형태 또는 {"companies": [...]}
