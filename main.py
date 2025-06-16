@@ -176,6 +176,7 @@ class App(tk.Tk):
         ttk.Entry(item_selection_frame, textvariable=self.invoice_item_search_var, width=40).grid(row=0, column=1, padx=5, pady=5, sticky="ew")
         self.invoice_item_listbox = tk.Listbox(item_selection_frame, height=8, exportselection=False, width=70)
         self.invoice_item_listbox.grid(row=1, column=0, columnspan=2, padx=5, pady=5, sticky="nsew")
+        self.invoice_item_listbox.bind("<Double-1>", self._on_invoice_item_listbox_double_click) # Add this binding
         item_scrollbar_y = ttk.Scrollbar(item_selection_frame, orient="vertical", command=self.invoice_item_listbox.yview)
         item_scrollbar_y.grid(row=1, column=2, sticky="ns")
         self.invoice_item_listbox.config(yscrollcommand=item_scrollbar_y.set)
@@ -300,6 +301,12 @@ class App(tk.Tk):
             self.invoice_item_listbox.selection_set(0)
     
     def _filter_invoice_items(self, *args): self._refresh_item_listbox_invoice_tab(self.invoice_item_search_var.get())
+
+    def _on_invoice_item_listbox_double_click(self, event):
+        """Handles double-click on an item in the invoice item search listbox."""
+        # The _add_item_to_invoice method already checks for selection,
+        # so we can call it directly.
+        self._add_item_to_invoice()
 
     def _add_item_to_invoice(self):
         selected_indices = self.invoice_item_listbox.curselection()
