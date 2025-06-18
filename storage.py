@@ -35,6 +35,15 @@ def get_user_data_path(filename: str) -> str:
             return os.path.join(os.getcwd(), filename) 
     return os.path.join(user_data_dir, filename)
 
+def normalize_text(text: Optional[str]) -> str:
+    """Converts text to a standardized format: lowercase, no leading/trailing spaces or commas, and single spaces between words."""
+    if not isinstance(text, str):
+        return ""
+    # Collapse multiple spaces into a single space
+    normalized_text = ' '.join(text.split())
+    # Convert to lowercase and strip leading/trailing spaces and commas
+    return normalized_text.lower().strip().strip(',')
+
 # --- Company Data Persistence (data.json) ---
 
 def _company_to_dict(company: Company) -> Dict[str, Any]:
@@ -173,9 +182,9 @@ def save_companies(companies: List[Company]):
 
 def _price_profile_to_dict(profile: PriceProfile) -> Dict[str, Any]:
     """PriceProfile 객체를 JSON 직렬화를 위한 dict로 변환"""
-    # Convert tuple keys in item_prices to string keys
+    # item_prices are already string keys, so no conversion needed
     string_key_item_prices = {
-        ITEM_KEY_SEPARATOR.join(k): str(v) for k, v in profile.item_prices.items()
+        k: str(v) for k, v in profile.item_prices.items()
     }
     return {
         "id": profile.id,
@@ -185,25 +194,28 @@ def _price_profile_to_dict(profile: PriceProfile) -> Dict[str, Any]:
 
 def _dict_to_price_profile(data: Dict[str, Any]) -> PriceProfile:
     """dict를 PriceProfile 객체로 변환"""
-    # Convert string keys back to tuple keys and Decimal values
-    parsed_item_prices: Dict[tuple[str, str, str], Decimal] = {}
+    profile_name_for_debug = data.get('name', 'N/A')
+    # Keep string keys instead of converting to tuple keys
+    parsed_item_prices: Dict[str, Decimal] = {}
     raw_item_prices = data.get("item_prices", {})
     if isinstance(raw_item_prices, dict):
         for str_key, str_val in raw_item_prices.items():
             try:
-                key_parts = tuple(str_key.split(ITEM_KEY_SEPARATOR))
-                if len(key_parts) == 3: # Expecting (model_name, product_name, spec)
-                    parsed_item_prices[key_parts] = Decimal(str_val)
+                key_parts = [normalize_text(part) for part in str_key.split(ITEM_KEY_SEPARATOR)]
+                if len(key_parts) == 3:
+                    normalized_key = ITEM_KEY_SEPARATOR.join(key_parts)
+                    parsed_item_prices[normalized_key] = Decimal(str_val)
                 else:
-                    print(f"Warning: Skipping malformed item price key '{str_key}' in profile '{data.get('name', 'N/A')}'.")
+                    print(f"Warning: Skipping malformed item price key '{str_key}' in profile '{profile_name_for_debug}'. Expected 3 parts, got {len(key_parts)}.")
             except (InvalidOperation, ValueError) as e:
-                print(f"Warning: Skipping invalid price value '{str_val}' for key '{str_key}' in profile '{data.get('name', 'N/A')}'. Error: {e}")
+                print(f"Warning: Skipping invalid price value '{str_val}' for key '{str_key}' in profile '{profile_name_for_debug}'. Error: {e}")
     
-    return PriceProfile(
+    final_profile = PriceProfile(
         id=data.get("id", ""),
         name=data["name"],
         item_prices=parsed_item_prices
     )
+    return final_profile
 
 def load_price_profiles() -> List[PriceProfile]:
     """
@@ -373,9 +385,9 @@ def load_product_master(json_file_path: str) -> List[Item]:
 
                 item_obj = Item(
                     lot=str(item_data_dict["LOT"]),
-                    model_name=str(item_data_dict["모델명"]),
-                    product_name=str(item_data_dict["제품명"]).lstrip(','),
-                    spec=str(item_data_dict["규격"]),
+                    model_name=normalize_text(str(item_data_dict["모델명"])),
+                    product_name=normalize_text(str(item_data_dict["제품명"])),
+                    spec=normalize_text(str(item_data_dict["규격"])),
                     treatment_code=str(item_data_dict["치료재료코드"]),
                     udi_di=parsed_udi_di,
                     prices=prices

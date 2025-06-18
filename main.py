@@ -14,10 +14,8 @@ import invoice
 def get_bundle_dir():
     """Return the base directory for bundled files, or the script's directory."""
     if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
-        # Running in a PyInstaller bundle
         return sys._MEIPASS
     else:
-        # Running in a normal Python environment
         return os.path.dirname(os.path.abspath(__file__))
 
 class App(tk.Tk):
@@ -26,40 +24,26 @@ class App(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("거래명세서 자동 작성 툴")
-        self.geometry("1100x750") # 창 크기 확장
+        self.geometry("1100x750")
 
-        # 데이터 로드
-        # Companies data (data.json) is not explicitly bundled by the current PyInstaller command.
-        # storage.load_companies() will look for it in the CWD (or create it there if not found).
-        # This might be desired for user-specific company data that persists next to the .exe.
         self.companies: List[Company] = storage.load_companies()
-        
-        # storage.py now handles its own path logic for price_profiles.json
         self.price_profiles: List[PriceProfile] = storage.load_price_profiles()
-        
         self.product_master_items: List[Item] = []
 
-        # Determine base directory for data files
         bundle_dir = get_bundle_dir()
-
-        # Path for product_master_file (item_data.json)
-        # PyInstaller command includes: --add-data "데이터파일/item_data.json:데이터파일"
-        # This means item_data.json will be in a '데이터파일' subdirectory within bundle_dir.
         bundled_product_master_path = os.path.join(bundle_dir, "데이터파일", storage.DEFAULT_PRODUCT_MASTER_FILE_BASENAME)
 
-        if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'): # If bundled
+        if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
             if os.path.exists(bundled_product_master_path):
                 self.product_master_file_path: str = bundled_product_master_path
             else:
-                # Bundled but primary data file not found in bundle - this is an issue.
                 self.product_master_file_path: str = ""
                 print(f"경고: 번들된 애플리케이션의 제품 마스터 파일 '{bundled_product_master_path}'을(를) 찾을 수 없습니다.")
-        else: # Not bundled, use logic relative to script's directory (which is bundle_dir here)
+        else:
             path_in_data_folder_script_dir = os.path.join(bundle_dir, "데이터파일", storage.DEFAULT_PRODUCT_MASTER_FILE_BASENAME)
             path_in_script_dir = os.path.join(bundle_dir, storage.DEFAULT_PRODUCT_MASTER_FILE_BASENAME)
             path_in_downloads = ""
             try:
-                # For non-bundled, Downloads path might still be a user convenience
                 path_in_downloads = os.path.expanduser(f"~/Downloads/{storage.DEFAULT_PRODUCT_MASTER_FILE_BASENAME}")
             except Exception:
                 pass
@@ -81,29 +65,22 @@ class App(tk.Tk):
         self.invoice_date_var = tk.StringVar(value=datetime.date.today().strftime("%Y-%m-%d"))
 
         self._create_main_menu()
-
         self.notebook = ttk.Notebook(self)
-        
         self.invoice_tab = ttk.Frame(self.notebook)
         self.company_management_tab = ttk.Frame(self.notebook)
         self.price_profile_management_tab = ttk.Frame(self.notebook)
         self.product_viewer_tab = ttk.Frame(self.notebook) 
-
         self.notebook.add(self.invoice_tab, text="거래명세서 작성")
         self.notebook.add(self.company_management_tab, text="거래처 관리")
         self.notebook.add(self.price_profile_management_tab, text="단가 프로파일 관리")
         self.notebook.add(self.product_viewer_tab, text="제품 마스터 조회") 
-        
         self._create_invoice_tab() 
         self._create_company_management_tab()
         self._create_price_profile_management_tab()
         self._create_product_viewer_tab() 
-
         self.notebook.pack(expand=True, fill="both", padx=10, pady=10)
-        
         self._refresh_company_listbox_invoice_tab()
         self._refresh_company_management_listbox()
-        
         self.protocol("WM_DELETE_WINDOW", self._on_closing)
 
     def _create_main_menu(self):
@@ -176,7 +153,7 @@ class App(tk.Tk):
         ttk.Entry(item_selection_frame, textvariable=self.invoice_item_search_var, width=40).grid(row=0, column=1, padx=5, pady=5, sticky="ew")
         self.invoice_item_listbox = tk.Listbox(item_selection_frame, height=8, exportselection=False, width=70)
         self.invoice_item_listbox.grid(row=1, column=0, columnspan=2, padx=5, pady=5, sticky="nsew")
-        self.invoice_item_listbox.bind("<Double-1>", self._on_invoice_item_listbox_double_click) # Add this binding
+        self.invoice_item_listbox.bind("<Double-1>", self._on_invoice_item_listbox_double_click)
         item_scrollbar_y = ttk.Scrollbar(item_selection_frame, orient="vertical", command=self.invoice_item_listbox.yview)
         item_scrollbar_y.grid(row=1, column=2, sticky="ns")
         self.invoice_item_listbox.config(yscrollcommand=item_scrollbar_y.set)
@@ -208,7 +185,7 @@ class App(tk.Tk):
         self.invoice_tree.configure(xscrollcommand=tree_scrollbar_x.set)
         tree_scrollbar_x.pack(side="bottom", fill="x")
         self.invoice_tree.pack(side="left", fill="both", expand=True)
-        self.invoice_tree.bind("<Double-1>", self._on_invoice_item_double_click_for_edit) # Renamed for clarity
+        self.invoice_tree.bind("<Double-1>", self._on_invoice_item_double_click_for_edit)
 
         bottom_frame = ttk.Frame(tab)
         bottom_frame.pack(fill="x", padx=5, pady=10)
@@ -226,7 +203,7 @@ class App(tk.Tk):
                 profile = next((p for p in self.price_profiles if p.id == company.custom_price_profile_id), None)
                 if profile:
                     display_name = f"{company.name} (단가: {profile.name})"
-                else: # Fallback if profile ID exists but profile not found
+                else: 
                     display_name = f"{company.name} (단가: {str(company.price_tier)})" 
             else:
                 display_name = f"{company.name} (단가: {str(company.price_tier)})"
@@ -234,7 +211,6 @@ class App(tk.Tk):
             
         self.invoice_company_combo['values'] = company_display_names
         if company_display_names:
-            # Try to preserve selection if possible, otherwise select first
             current_selection_text = self.invoice_company_combo.get()
             if current_selection_text in company_display_names:
                 self.invoice_company_combo.set(current_selection_text)
@@ -280,16 +256,19 @@ class App(tk.Tk):
         for rep_item_obj in unique_representative_items.values():
             display_text = f"{rep_item_obj.product_name} ({rep_item_obj.model_name} / {rep_item_obj.spec})"
             unit_price: Optional[Decimal] = None; price_source = ""
-            if current_price_profile: # current_price_profile is the PriceProfile object
-                item_profile_key_tuple = (rep_item_obj.model_name, rep_item_obj.product_name, rep_item_obj.spec)
-                if item_profile_key_tuple in current_price_profile.item_prices:
-                    unit_price = current_price_profile.item_prices[item_profile_key_tuple]
-                    price_source = f" ({current_price_profile.name})" # Use profile name
-            if unit_price is None and current_company: # Fallback to company's standard tier if not in custom or no custom profile
+            if current_price_profile:
+                model_name_normalized = storage.normalize_text(rep_item_obj.model_name)
+                product_name_normalized = storage.normalize_text(rep_item_obj.product_name)
+                spec_normalized = storage.normalize_text(rep_item_obj.spec)
+                item_profile_key_str = storage.ITEM_KEY_SEPARATOR.join([model_name_normalized, product_name_normalized, spec_normalized])
+                if item_profile_key_str in current_price_profile.item_prices:
+                    unit_price = current_price_profile.item_prices[item_profile_key_str]
+                    price_source = f" ({current_price_profile.name})"
+            
+            if unit_price is None and current_company:
                 unit_price = rep_item_obj.get_price_for_tier(current_company.price_tier)
                 if unit_price is not None: 
-                    # Only set price_source if it wasn't already set by a custom profile
-                    if not price_source: # Check if price_source is still empty
+                    if not price_source:
                          price_source = f" ({str(current_company.price_tier)})"
             
             display_text += f" (단가: {unit_price:,.0f}{price_source})" if unit_price is not None else " (단가: N/A)"
@@ -303,9 +282,6 @@ class App(tk.Tk):
     def _filter_invoice_items(self, *args): self._refresh_item_listbox_invoice_tab(self.invoice_item_search_var.get())
 
     def _on_invoice_item_listbox_double_click(self, event):
-        """Handles double-click on an item in the invoice item search listbox."""
-        # The _add_item_to_invoice method already checks for selection,
-        # so we can call it directly.
         self._add_item_to_invoice()
 
     def _add_item_to_invoice(self):
@@ -327,11 +303,14 @@ class App(tk.Tk):
             current_price_profile = next((p for p in self.price_profiles if p.id == self.selected_company_for_invoice.custom_price_profile_id), None)
         
         if current_price_profile:
-            item_profile_key_tuple = (selected_item_obj.model_name, selected_item_obj.product_name, selected_item_obj.spec)
-            if item_profile_key_tuple in current_price_profile.item_prices: 
-                unit_price = current_price_profile.item_prices[item_profile_key_tuple]
+            model_name_normalized = storage.normalize_text(selected_item_obj.model_name)
+            product_name_normalized = storage.normalize_text(selected_item_obj.product_name)
+            spec_normalized = storage.normalize_text(selected_item_obj.spec)
+            item_profile_key_str = storage.ITEM_KEY_SEPARATOR.join([model_name_normalized, product_name_normalized, spec_normalized])
+            if item_profile_key_str in current_price_profile.item_prices:
+                unit_price = current_price_profile.item_prices[item_profile_key_str]
         
-        if unit_price is None: # Fallback if not in custom profile or no custom profile assigned
+        if unit_price is None:
             unit_price = selected_item_obj.get_price_for_tier(self.selected_company_for_invoice.price_tier)
 
         if unit_price is None: 
@@ -387,100 +366,59 @@ class App(tk.Tk):
         else: messagebox.showerror("실패", "거래명세서 생성에 실패했습니다.")
 
     def _on_invoice_item_double_click_for_edit(self, event):
-        """Handle double-click on the invoice items tree for in-place quantity editing."""
         if hasattr(self, '_invoice_qty_edit_entry') and self._invoice_qty_edit_entry:
             self._invoice_qty_edit_entry.destroy()
             self._invoice_qty_edit_entry = None
-
         tree = event.widget
         region = tree.identify_region(event.x, event.y)
-        
-        if region != "cell":
-            return
-
-        column_id_str = tree.identify_column(event.x)  # e.g., "#1", "#2", etc.
-        item_iid = tree.focus() # This is the item's LOT number (iid)
-
-        if not item_iid:
-            return
-
-        # Determine column index from column_id_str (e.g. "#5" for quantity)
-        # Columns: "lot", "model_name", "product_name", "spec", "qty", ...
-        # "qty" is the 5th column, so its ID is typically "#5"
-        if column_id_str != "#5": # If not the "qty" column
-            # Here you could re-introduce the old dialog for other purposes if needed,
-            # or simply do nothing for double-clicks on other columns.
-            # For now, we only handle quantity editing.
-            # print(f"Double-clicked on column {column_id_str}, not quantity.")
-            return
-
+        if region != "cell": return
+        column_id_str = tree.identify_column(event.x)
+        item_iid = tree.focus()
+        if not item_iid: return
+        if column_id_str != "#5": return
         line_to_edit = next((line for line in self.current_invoice_lines if line.item.lot == item_iid), None)
-        if not line_to_edit:
-            return
-
+        if not line_to_edit: return
         x, y, width, height = tree.bbox(item_iid, column_id_str)
-        
         entry_var = tk.StringVar(value=str(line_to_edit.qty))
-        
-        entry = ttk.Entry(tree, textvariable=entry_var, width=width//7) # Approximate width
+        entry = ttk.Entry(tree, textvariable=entry_var, width=width//7)
         entry.place(x=x, y=y, width=width, height=height, anchor='nw')
         entry.focus_set()
         entry.select_range(0, tk.END)
-
         self._invoice_qty_edit_entry = entry
         self._invoice_qty_edit_line = line_to_edit
-
         entry.bind("<Return>", self._save_invoice_qty_edit)
         entry.bind("<FocusOut>", self._save_invoice_qty_edit)
         entry.bind("<Escape>", lambda e: self._invoice_qty_edit_entry.destroy() if hasattr(self, '_invoice_qty_edit_entry') and self._invoice_qty_edit_entry else None)
 
     def _save_invoice_qty_edit(self, event):
-        if not hasattr(self, '_invoice_qty_edit_entry') or not self._invoice_qty_edit_entry:
-            return
-
+        if not hasattr(self, '_invoice_qty_edit_entry') or not self._invoice_qty_edit_entry: return
         entry = self._invoice_qty_edit_entry
         new_qty_str = entry.get().strip()
         line_to_edit = self._invoice_qty_edit_line
-
         entry.destroy()
         self._invoice_qty_edit_entry = None
-
         if not new_qty_str:
             messagebox.showwarning("입력 오류", "수량을 입력해주세요.", parent=self)
-            self._refresh_invoice_tree() # Refresh to show original
-            self._update_invoice_total_sum()
+            self._refresh_invoice_tree(); self._update_invoice_total_sum()
             return
-
         try:
             new_qty = int(new_qty_str)
             if new_qty <= 0:
                 messagebox.showwarning("수량 오류", "수량은 0보다 커야 합니다.", parent=self)
-                self._refresh_invoice_tree()
-                self._update_invoice_total_sum()
+                self._refresh_invoice_tree(); self._update_invoice_total_sum()
                 return
-            
             line_to_edit.qty = new_qty
-            # InvoiceLine should ideally recalculate its supply_amount and vat upon qty change.
-            # Assuming InvoiceLine does this, or we do it manually here if needed.
-            # For now, let's assume InvoiceLine's properties handle it or refresh will.
-            
-            self._refresh_invoice_tree() # Refreshes all lines, including calculated values
-            self._update_invoice_total_sum()
-
-            # Reselect the edited item
+            self._refresh_invoice_tree(); self._update_invoice_total_sum()
             if self.invoice_tree.exists(line_to_edit.item.lot):
                 self.invoice_tree.selection_set(line_to_edit.item.lot)
                 self.invoice_tree.focus(line_to_edit.item.lot)
                 self.invoice_tree.see(line_to_edit.item.lot)
-
         except ValueError:
             messagebox.showwarning("수량 오류", "수량은 숫자로 입력해야 합니다.", parent=self)
-            self._refresh_invoice_tree()
-            self._update_invoice_total_sum()
+            self._refresh_invoice_tree(); self._update_invoice_total_sum()
         except Exception as e:
             messagebox.showerror("저장 오류", f"수량 저장 중 오류 발생: {e}", parent=self)
-            self._refresh_invoice_tree()
-            self._update_invoice_total_sum()
+            self._refresh_invoice_tree(); self._update_invoice_total_sum()
 
     def _sort_invoice_tree_column(self, col, is_numeric):
         try:
@@ -545,10 +483,8 @@ class App(tk.Tk):
         selected_indices = self.company_listbox.curselection()
         if not selected_indices: self._clear_company_fields(); return
         selected_display_str_from_listbox = self.company_listbox.get(selected_indices[0])
-        
         company_name_part = selected_display_str_from_listbox.split(" (단가:")[0]
         company = next((c for c in self.companies if c.name == company_name_part), None)
-
         if company:
             self.company_id_var.set(company.id); self.company_name_var.set(company.name)
             self.company_contact_var.set(company.contact or "")
@@ -572,7 +508,6 @@ class App(tk.Tk):
                  self.company_price_tier_var.set("")
         else:
             self.company_price_tier_var.set("")
-
         if hasattr(self, 'company_listbox'): self.company_listbox.selection_clear(0, tk.END)
         if hasattr(self, 'company_name_entry'): self.company_name_entry.focus()
 
@@ -580,7 +515,6 @@ class App(tk.Tk):
         standard_tier_names = [str(tier) for tier in PriceTier if tier != PriceTier.CUSTOM]
         custom_profile_names = [p.name for p in sorted(self.price_profiles, key=lambda x: x.name)]
         combined_values = standard_tier_names + custom_profile_names
-        
         if hasattr(self, 'company_price_tier_combo'):
             current_val = self.company_price_tier_var.get()
             self.company_price_tier_combo['values'] = combined_values
@@ -597,17 +531,11 @@ class App(tk.Tk):
         name = self.company_name_var.get().strip()
         contact = self.company_contact_var.get().strip() or None
         selected_tier_or_profile_name = self.company_price_tier_var.get()
-        
-        if not name: 
-            messagebox.showwarning("입력 오류", "회사명은 필수 항목입니다."); return
-        if not selected_tier_or_profile_name: 
-            messagebox.showwarning("입력 오류", "가격 등급 또는 프로파일을 선택해주세요."); return
-
+        if not name: messagebox.showwarning("입력 오류", "회사명은 필수 항목입니다."); return
+        if not selected_tier_or_profile_name: messagebox.showwarning("입력 오류", "가격 등급 또는 프로파일을 선택해주세요."); return
         final_price_tier: Optional[PriceTier] = None
         final_custom_profile_id: Optional[str] = None
-
         standard_tier = next((tier for tier in PriceTier if str(tier) == selected_tier_or_profile_name and tier != PriceTier.CUSTOM), None)
-        
         if standard_tier:
             final_price_tier = standard_tier
             final_custom_profile_id = None
@@ -618,10 +546,8 @@ class App(tk.Tk):
                 final_custom_profile_id = custom_profile.id
             else:
                 messagebox.showerror("오류", f"선택된 가격 설정 '{selected_tier_or_profile_name}'을(를) 찾을 수 없습니다."); return
-
         if any(c.name.lower() == name.lower() for c in self.companies): 
             messagebox.showwarning("중복 오류", f"이미 '{name}' 이름의 회사가 존재합니다."); return
-        
         new_company = Company(name=name, contact=contact, price_tier=final_price_tier, custom_price_profile_id=final_custom_profile_id)
         self.companies.append(new_company)
         storage.save_companies(self.companies) 
@@ -632,21 +558,14 @@ class App(tk.Tk):
 
     def _update_company(self):
         selected_id = self.company_id_var.get()
-        if not selected_id: 
-            messagebox.showwarning("선택 오류", "수정할 회사를 목록에서 선택해주세요."); return
-        
+        if not selected_id: messagebox.showwarning("선택 오류", "수정할 회사를 목록에서 선택해주세요."); return
         name = self.company_name_var.get().strip()
         contact = self.company_contact_var.get().strip() or None
         selected_tier_or_profile_name = self.company_price_tier_var.get()
-
-        if not name: 
-            messagebox.showwarning("입력 오류", "회사명은 필수 항목입니다."); return
-        if not selected_tier_or_profile_name: 
-            messagebox.showwarning("입력 오류", "가격 등급 또는 프로파일을 선택해주세요."); return
-
+        if not name: messagebox.showwarning("입력 오류", "회사명은 필수 항목입니다."); return
+        if not selected_tier_or_profile_name: messagebox.showwarning("입력 오류", "가격 등급 또는 프로파일을 선택해주세요."); return
         final_price_tier: Optional[PriceTier] = None
         final_custom_profile_id: Optional[str] = None
-
         standard_tier = next((tier for tier in PriceTier if str(tier) == selected_tier_or_profile_name and tier != PriceTier.CUSTOM), None)
         if standard_tier:
             final_price_tier = standard_tier
@@ -658,14 +577,10 @@ class App(tk.Tk):
                 final_custom_profile_id = custom_profile.id
             else:
                 messagebox.showerror("오류", f"선택된 가격 설정 '{selected_tier_or_profile_name}'을(를) 찾을 수 없습니다."); return
-        
         company_to_update = next((c for c in self.companies if c.id == selected_id), None)
-        if not company_to_update: 
-            messagebox.showerror("오류", "수정할 회사를 찾을 수 없습니다."); return
-        
+        if not company_to_update: messagebox.showerror("오류", "수정할 회사를 찾을 수 없습니다."); return
         if (company_to_update.name.lower() != name.lower() and any(c.name.lower() == name.lower() and c.id != selected_id for c in self.companies)):
             messagebox.showwarning("중복 오류", f"이미 '{name}' 이름의 다른 회사가 존재합니다."); return
-        
         company_to_update.name = name
         company_to_update.contact = contact
         company_to_update.price_tier = final_price_tier
@@ -755,7 +670,7 @@ class App(tk.Tk):
             self.profile_item_prices_tree.heading(col_id, text=item_price_headers[i])
             self.profile_item_prices_tree.column(col_id, width=item_price_widths[i], anchor='w' if i == 0 else 'e')
         
-        self.profile_item_prices_tree.bind("<Double-1>", self._on_profile_price_double_click) # Add this line
+        self.profile_item_prices_tree.bind("<Double-1>", self._on_profile_price_double_click)
 
         tree_scroll_y = ttk.Scrollbar(item_prices_frame, orient="vertical", command=self.profile_item_prices_tree.yview); self.profile_item_prices_tree.configure(yscrollcommand=tree_scroll_y.set)
         self.profile_item_prices_tree.pack(side="left", fill="both", expand=True); tree_scroll_y.pack(side="right", fill="y")
@@ -764,115 +679,71 @@ class App(tk.Tk):
         ttk.Button(item_buttons_frame, text="품목 단가 삭제", command=self._remove_profile_item_price).pack(side="left", padx=5)
 
     def _on_profile_price_double_click(self, event):
-        """Handle double-click on the price profile items tree for in-place editing."""
-        # Remove any existing edit entry first
         if hasattr(self, '_profile_price_edit_entry') and self._profile_price_edit_entry:
             self._profile_price_edit_entry.destroy()
             self._profile_price_edit_entry = None
-
         tree = event.widget
         region = tree.identify_region(event.x, event.y)
-        
-        if region != "cell":
-            return
-
-        column_id = tree.identify_column(event.x) # e.g., #0, #1, #2
-        item_iid = tree.focus() # This is the item's unique ID (our string key)
-
-        if not item_iid or column_id != "#2": # Column #2 is "custom_price" (0-indexed: #0, #1)
-            return
-
-        # Get cell bounding box
+        if region != "cell": return
+        column_id = tree.identify_column(event.x)
+        item_iid = tree.focus() 
+        if not item_iid or column_id != "#2": return
         x, y, width, height = tree.bbox(item_iid, column_id)
-
-        # Get current value
         current_values = tree.item(item_iid, "values")
-        if not current_values or len(current_values) < 2:
-            return
-        
-        # The value in the tree is formatted (e.g., "1,234.50")
-        # We need the raw Decimal value from the model for editing.
+        if not current_values or len(current_values) < 2: return
         selected_profile_name = self.selected_profile_name_var.get()
         profile = next((p for p in self.price_profiles if p.name == selected_profile_name), None)
-        if not profile:
+        if not profile: return
+        if item_iid not in profile.item_prices:
+            print(f"Warning: Item key '{item_iid}' not found in profile '{profile.name}' for editing.")
             return
-
-        item_key_tuple = tuple(item_iid.split(storage.ITEM_KEY_SEPARATOR))
-        if len(item_key_tuple) != 3 or item_key_tuple not in profile.item_prices:
-            return
-        
-        original_price_decimal = profile.item_prices[item_key_tuple]
-        
-        entry_var = tk.StringVar(value=str(original_price_decimal)) # Edit the raw decimal string
-        
-        entry = ttk.Entry(tree, textvariable=entry_var, width=width//7) # Approximate width
+        original_price_decimal = profile.item_prices[item_iid]
+        entry_var = tk.StringVar(value=str(original_price_decimal))
+        entry = ttk.Entry(tree, textvariable=entry_var, width=width//7)
         entry.place(x=x, y=y, width=width, height=height, anchor='nw')
         entry.focus_set()
         entry.select_range(0, tk.END)
-
         self._profile_price_edit_entry = entry
         self._profile_price_edit_item_iid = item_iid
         self._profile_price_edit_profile = profile
-        self._profile_price_edit_key_tuple = item_key_tuple
-
         entry.bind("<Return>", self._save_profile_price_edit)
         entry.bind("<FocusOut>", self._save_profile_price_edit)
         entry.bind("<Escape>", lambda e: self._profile_price_edit_entry.destroy() if hasattr(self, '_profile_price_edit_entry') and self._profile_price_edit_entry else None)
 
     def _save_profile_price_edit(self, event):
-        if not hasattr(self, '_profile_price_edit_entry') or not self._profile_price_edit_entry:
-            return
-
+        if not hasattr(self, '_profile_price_edit_entry') or not self._profile_price_edit_entry: return
         entry = self._profile_price_edit_entry
         new_price_str = entry.get().strip()
-        item_iid = self._profile_price_edit_item_iid
+        item_iid = self._profile_price_edit_item_iid 
         profile = self._profile_price_edit_profile
-        item_key_tuple = self._profile_price_edit_key_tuple
-
         entry.destroy()
-        self._profile_price_edit_entry = None # Clear the reference
-
-        if not new_price_str: # Empty string, treat as no change or handle as error
+        self._profile_price_edit_entry = None
+        if not new_price_str:
             messagebox.showwarning("입력 오류", "단가를 입력해주세요.", parent=self)
-            self._refresh_profile_item_prices_tree(profile) # Refresh to show original
+            self._refresh_profile_item_prices_tree(profile)
             return
-
         try:
             new_price_decimal = Decimal(new_price_str)
             if new_price_decimal < Decimal("0"):
                 messagebox.showwarning("가격 오류", "단가는 0보다 크거나 같아야 합니다.", parent=self)
                 self._refresh_profile_item_prices_tree(profile)
                 return
-            
-            # Update the model
-            profile.item_prices[item_key_tuple] = new_price_decimal
+            profile.item_prices[item_iid] = new_price_decimal
             storage.save_price_profiles(self.price_profiles)
-            
-            # Update the treeview directly for the edited cell
-            # The _refresh_profile_item_prices_tree will re-sort, so direct update is better for UX
-            # However, for simplicity and to ensure sorting is maintained, we'll refresh the whole tree for now.
-            # A more advanced implementation would update the specific cell:
-            # self.profile_item_prices_tree.set(item_iid, "#2", f"{new_price_decimal:,.2f}")
-            self._refresh_profile_item_prices_tree(profile) # This re-fetches and re-sorts
-            
-            # Reselect the edited item and ensure it's visible
+            self._refresh_profile_item_prices_tree(profile)
             if self.price_profile_listbox.curselection():
                 selected_profile_name_in_list = self.price_profile_listbox.get(self.price_profile_listbox.curselection()[0])
                 if selected_profile_name_in_list == profile.name:
-                    # Try to re-focus the item in the tree if it's still there after refresh
                     if self.profile_item_prices_tree.exists(item_iid):
                          self.profile_item_prices_tree.selection_set(item_iid)
                          self.profile_item_prices_tree.focus(item_iid)
                          self.profile_item_prices_tree.see(item_iid)
-
-
         except InvalidOperation:
             messagebox.showwarning("가격 오류", "유효한 숫자 형식으로 단가를 입력해주세요 (예: 123.45).", parent=self)
-            self._refresh_profile_item_prices_tree(profile) # Refresh to show original
+            self._refresh_profile_item_prices_tree(profile)
         except Exception as e:
             messagebox.showerror("저장 오류", f"단가 저장 중 오류 발생: {e}", parent=self)
             self._refresh_profile_item_prices_tree(profile)
-
 
     def _refresh_price_profile_listbox(self):
         if not hasattr(self, 'price_profile_listbox'): return
@@ -885,8 +756,7 @@ class App(tk.Tk):
             if profile.name == current_selected_name: new_selection_index = i
         if new_selection_index != -1: self.price_profile_listbox.selection_set(new_selection_index); self.price_profile_listbox.see(new_selection_index)
         else: self._clear_price_profile_details_view()
-        self._update_company_price_tier_combo_values() # Changed from _update_company_custom_profile_combo_values
-
+        self._update_company_price_tier_combo_values()
 
     def _add_new_price_profile(self):
         profile_name = simpledialog.askstring("새 단가 프로파일", "새 프로파일 이름을 입력하세요:", parent=self)
@@ -902,8 +772,9 @@ class App(tk.Tk):
             for item_obj in self.product_master_items:
                 dealer_price = item_obj.prices.get(PriceTier.DEALER.value)
                 if dealer_price is not None:
-                    item_key_tuple = (item_obj.model_name, item_obj.product_name, item_obj.spec)
-                    new_profile.item_prices[item_key_tuple] = dealer_price
+                    item_key_tuple = (storage.normalize_text(item_obj.model_name), storage.normalize_text(item_obj.product_name), storage.normalize_text(item_obj.spec))
+                    item_key_str = storage.ITEM_KEY_SEPARATOR.join(item_key_tuple)
+                    new_profile.item_prices[item_key_str] = dealer_price
             
             self.price_profiles.append(new_profile)
             storage.save_price_profiles(self.price_profiles)
@@ -923,7 +794,7 @@ class App(tk.Tk):
             messagebox.showinfo("성공", f"'{profile_name}' 프로파일이 추가되고 기본 단가로 채워졌습니다.", parent=self)
             self._update_company_price_tier_combo_values() 
     
-    def _rename_price_profile(self): # Only one instance of this method now
+    def _rename_price_profile(self):
         selected_indices = self.price_profile_listbox.curselection()
         if not selected_indices: messagebox.showwarning("프로파일 미선택", "이름을 변경할 프로파일을 목록에서 선택해주세요.", parent=self); return
         selected_profile_name = self.price_profile_listbox.get(selected_indices[0])
@@ -937,15 +808,14 @@ class App(tk.Tk):
             profile_to_rename.name = new_name
             storage.save_price_profiles(self.price_profiles)
             self._refresh_price_profile_listbox()
-            for i, p_name in enumerate(self.price_profile_listbox.get(0, tk.END)): # Reselect after refresh
+            for i, p_name in enumerate(self.price_profile_listbox.get(0, tk.END)):
                 if p_name == new_name: 
                     self.price_profile_listbox.selection_set(i)
                     self.price_profile_listbox.see(i)
-                    self._on_price_profile_selected(None) # Ensure details view updates
+                    self._on_price_profile_selected(None)
                     break
             messagebox.showinfo("성공", f"프로파일 이름이 '{new_name}'(으)로 변경되었습니다.", parent=self)
             self._update_company_price_tier_combo_values()
-
 
     def _delete_price_profile(self):
         selected_indices = self.price_profile_listbox.curselection()
@@ -986,19 +856,26 @@ class App(tk.Tk):
         if not hasattr(self, 'profile_item_prices_tree'): return
         for i in self.profile_item_prices_tree.get_children(): self.profile_item_prices_tree.delete(i)
         
-        sorted_item_tuple_keys = sorted(profile.item_prices.keys(), key=lambda k: (k[1], k[0], k[2])) 
+        sorted_item_str_keys = sorted(
+            profile.item_prices.keys(),
+            key=lambda k_str: (
+                k_str.split(storage.ITEM_KEY_SEPARATOR)[1], 
+                k_str.split(storage.ITEM_KEY_SEPARATOR)[0], 
+                k_str.split(storage.ITEM_KEY_SEPARATOR)[2]
+            )
+        )
 
-        for item_key_tuple in sorted_item_tuple_keys:
-            price = profile.item_prices[item_key_tuple]
-            m, p, s = item_key_tuple[0], item_key_tuple[1], item_key_tuple[2]
+        for item_key_str in sorted_item_str_keys:
+            price = profile.item_prices[item_key_str]
+            key_parts = item_key_str.split(storage.ITEM_KEY_SEPARATOR)
+            m, p, s = key_parts[0], key_parts[1], key_parts[2]
             
-            master_item_ref = next((it for it in self.product_master_items if it.model_name == m and it.product_name == p and it.spec == s), None)
-            item_desc_display = f"{p} ({m} / {s})" # Default display
+            master_item_ref = next((it for it in self.product_master_items if storage.normalize_text(it.model_name) == m and storage.normalize_text(it.product_name) == p and storage.normalize_text(it.spec) == s), None)
+            item_desc_display = f"{p} ({m} / {s})" 
             if master_item_ref: 
                 item_desc_display = f"{master_item_ref.product_name} ({master_item_ref.model_name} / {master_item_ref.spec})"
             
-            item_key_str_for_iid = storage.ITEM_KEY_SEPARATOR.join(item_key_tuple)
-            self.profile_item_prices_tree.insert("", tk.END, iid=item_key_str_for_iid, values=(item_desc_display, f"{price:,.2f}"))
+            self.profile_item_prices_tree.insert("", tk.END, iid=item_key_str, values=(item_desc_display, f"{price:,.2f}"))
 
     def _add_or_edit_profile_item_price(self):
         selected_profile_indices = self.price_profile_listbox.curselection()
@@ -1007,35 +884,24 @@ class App(tk.Tk):
         profile = next((p for p in self.price_profiles if p.name == selected_profile_name), None)
         if not profile: messagebox.showerror("오류", "선택된 프로파일을 찾을 수 없습니다.", parent=self); return
         
-        selected_item_price_iid = self.profile_item_prices_tree.focus()
+        selected_item_price_iid = self.profile_item_prices_tree.focus() 
         existing_item_key_str: Optional[str] = None
         initial_price_str = ""
         
-        if selected_item_price_iid: # Editing existing
-            existing_item_key_str = selected_item_price_iid # This iid is the string key "model|product|spec"
-            # Convert string key to tuple key for lookup in profile.item_prices
-            try:
-                item_key_tuple_for_lookup = tuple(existing_item_key_str.split(storage.ITEM_KEY_SEPARATOR))
-                if len(item_key_tuple_for_lookup) == 3 and item_key_tuple_for_lookup in profile.item_prices:
-                    initial_price_str = str(profile.item_prices[item_key_tuple_for_lookup])
-                else: # Should not happen if tree iid is correct
-                    print(f"Warning: Tree IID {existing_item_key_str} not found as tuple key in profile prices for editing.")
-            except Exception as e:
-                 print(f"Error converting tree IID to tuple for price lookup: {e}")
+        if selected_item_price_iid: 
+            existing_item_key_str = selected_item_price_iid 
+            if existing_item_key_str in profile.item_prices:
+                initial_price_str = str(profile.item_prices[existing_item_key_str])
+            else: 
+                print(f"Warning: Tree IID (string key) '{existing_item_key_str}' not found in profile prices for editing. Profile items: {profile.item_prices}")
         
         dialog = EditProfileItemPriceDialog(self, self.product_master_items, profile_name=profile.name, existing_item_key_str=existing_item_key_str, initial_price_str=initial_price_str)
         if dialog.result:
-            item_key_str_from_dialog, new_price_decimal = dialog.result 
-            try:
-                item_key_tuple = tuple(item_key_str_from_dialog.split(storage.ITEM_KEY_SEPARATOR))
-                if len(item_key_tuple) != 3:
-                    raise ValueError("Item key string from dialog does not have 3 parts after split.")
-                profile.item_prices[item_key_tuple] = new_price_decimal 
-                storage.save_price_profiles(self.price_profiles)
-                self._refresh_profile_item_prices_tree(profile)
-                messagebox.showinfo("성공", "프로파일 품목 단가가 저장되었습니다.", parent=self)
-            except ValueError as e:
-                messagebox.showerror("오류", f"품목 키 형식 오류로 단가를 저장할 수 없습니다: {e}", parent=self)
+            item_key_str_from_dialog, new_price_decimal = dialog.result
+            profile.item_prices[item_key_str_from_dialog] = new_price_decimal
+            storage.save_price_profiles(self.price_profiles)
+            self._refresh_profile_item_prices_tree(profile)
+            messagebox.showinfo("성공", "프로파일 품목 단가가 저장되었습니다.", parent=self)
 
     def _remove_profile_item_price(self):
         selected_profile_indices = self.price_profile_listbox.curselection()
@@ -1044,28 +910,22 @@ class App(tk.Tk):
         profile = next((p for p in self.price_profiles if p.name == selected_profile_name), None)
         if not profile: messagebox.showerror("오류", "선택된 프로파일을 찾을 수 없습니다.", parent=self); return
         
-        selected_item_price_iid = self.profile_item_prices_tree.focus()
+        selected_item_price_iid = self.profile_item_prices_tree.focus() 
         if not selected_item_price_iid: messagebox.showwarning("품목 미선택", "프로파일에서 삭제할 품목 단가를 선택해주세요.", parent=self); return
         
-        item_key_to_remove_str = selected_item_price_iid 
-        try:
-            item_key_to_remove_tuple = tuple(item_key_to_remove_str.split(storage.ITEM_KEY_SEPARATOR))
-            if len(item_key_to_remove_tuple) != 3:
-                 raise ValueError("Item key string does not have 3 parts after split.")
+        item_key_to_remove_str = selected_item_price_iid
 
-            if item_key_to_remove_tuple in profile.item_prices:
-                item_values = self.profile_item_prices_tree.item(selected_item_price_iid, "values")
-                item_display_name = item_values[0] if item_values else item_key_to_remove_str
-                
-                if messagebox.askyesno("삭제 확인", f"'{profile.name}' 프로파일에서\n'{item_display_name}' 품목의 단가를 삭제하시겠습니까?", parent=self):
-                    del profile.item_prices[item_key_to_remove_tuple] 
-                    storage.save_price_profiles(self.price_profiles)
-                    self._refresh_profile_item_prices_tree(profile)
-                    messagebox.showinfo("성공", "프로파일 품목 단가가 삭제되었습니다.", parent=self)
-            else:
-                messagebox.showerror("오류", "선택된 품목 단가를 프로파일에서 찾을 수 없습니다.", parent=self)
-        except ValueError as e:
-            messagebox.showerror("오류", f"품목 키 형식 오류로 단가를 삭제할 수 없습니다: {e}", parent=self)
+        if item_key_to_remove_str in profile.item_prices:
+            item_values = self.profile_item_prices_tree.item(selected_item_price_iid, "values")
+            item_display_name = item_values[0] if item_values else item_key_to_remove_str
+            
+            if messagebox.askyesno("삭제 확인", f"'{profile.name}' 프로파일에서\n'{item_display_name}' 품목의 단가를 삭제하시겠습니까?", parent=self):
+                del profile.item_prices[item_key_to_remove_str]
+                storage.save_price_profiles(self.price_profiles)
+                self._refresh_profile_item_prices_tree(profile)
+                messagebox.showinfo("성공", "프로파일 품목 단가가 삭제되었습니다.", parent=self)
+        else:
+            messagebox.showerror("오류", f"선택된 품목 단가 키 '{item_key_to_remove_str}'을(를) 프로파일에서 찾을 수 없습니다.", parent=self)
 
 # --- Custom Dialog for Editing Profile Item Price ---
 class EditProfileItemPriceDialog(simpledialog.Dialog):
@@ -1074,38 +934,33 @@ class EditProfileItemPriceDialog(simpledialog.Dialog):
                  initial_price_str: str = ""):
         self.product_master_items = product_master_items
         self.profile_name = profile_name
-        self.existing_item_key_str = existing_item_key_str # This is "model|product|spec"
+        self.existing_item_key_str = existing_item_key_str 
         self.initial_price_str = initial_price_str
-        self.selected_item_key_str: Optional[str] = None # Will also be "model|product|spec"
+        self.selected_item_key_str: Optional[str] = None 
         self.new_price_var = tk.StringVar(value=initial_price_str)
-        self.result: Optional[tuple[str, Decimal]] = None # (string_key, price)
+        self.result: Optional[tuple[str, Decimal]] = None 
         self.item_search_var = tk.StringVar()
         self.item_listbox: Optional[tk.Listbox] = None
-        # dialog_item_map: display_string -> tuple_key for master items
         self.dialog_item_map: Dict[str, tuple[str, str, str]] = {} 
         super().__init__(parent, title=f"'{profile_name}' 프로파일 단가 설정")
 
     def body(self, master):
         top_controls_frame = ttk.Frame(master)
         top_controls_frame.pack(fill="x", padx=10, pady=(10,0))
-
         ttk.Label(top_controls_frame, text="품목:").pack(side="left", padx=(0,5))
-
-        if self.existing_item_key_str: # Editing existing item, key is "model|product|spec"
+        if self.existing_item_key_str: 
             key_parts = self.existing_item_key_str.split(storage.ITEM_KEY_SEPARATOR)
             item_desc = "알 수 없는 품목"
             if len(key_parts) == 3:
                 m, p, s = key_parts[0], key_parts[1], key_parts[2]
-                # Find in master to get full product name for display
-                master_item_ref = next((it for it in self.product_master_items if it.model_name == m and it.product_name == p and it.spec == s), None)
-                item_desc = f"{master_item_ref.product_name} ({m}/{s})" if master_item_ref else f"{p} ({m}/{s})" # Fallback display
+                master_item_ref = next((it for it in self.product_master_items if storage.normalize_text(it.model_name) == m and storage.normalize_text(it.product_name) == p and storage.normalize_text(it.spec) == s), None)
+                item_desc = f"{master_item_ref.product_name} ({m}/{s})" if master_item_ref else f"{p} ({m}/{s})"
             ttk.Label(top_controls_frame, text=item_desc, width=40, anchor="w").pack(side="left", fill="x", expand=True)
-            self.selected_item_key_str = self.existing_item_key_str # Store the string key
-        else: # Adding new item
+            self.selected_item_key_str = self.existing_item_key_str 
+        else: 
             search_entry = ttk.Entry(top_controls_frame, textvariable=self.item_search_var, width=30)
             search_entry.pack(side="left", fill="x", expand=True)
             search_entry.bind("<KeyRelease>", self._filter_dialog_items)
-            
             listbox_frame = ttk.Frame(master)
             listbox_frame.pack(fill="both", expand=True, padx=10, pady=5)
             self.item_listbox = tk.Listbox(listbox_frame, exportselection=False, height=7)
@@ -1114,13 +969,11 @@ class EditProfileItemPriceDialog(simpledialog.Dialog):
             list_scrollbar_y.pack(side="right", fill="y")
             self.item_listbox.pack(side="left", fill="both", expand=True)
             self._populate_dialog_item_listbox()
-
         price_frame = ttk.Frame(master)
         price_frame.pack(fill="x", padx=10, pady=(5,10))
         ttk.Label(price_frame, text="사용자 지정 단가:").pack(side="left", padx=(0,5))
         self.price_entry_widget = ttk.Entry(price_frame, textvariable=self.new_price_var, width=15)
         self.price_entry_widget.pack(side="left")
-        
         if not self.existing_item_key_str and self.item_listbox:
             return self.item_listbox 
         return self.price_entry_widget
@@ -1130,28 +983,18 @@ class EditProfileItemPriceDialog(simpledialog.Dialog):
         self.item_listbox.delete(0, tk.END)
         self.dialog_item_map.clear()
         search_term = filter_text.lower()
-        
-        # Use a set to store string representations of unique items (model|product|spec) to avoid duplicates in listbox
         unique_item_keys_in_listbox = set()
-
         for item_obj in self.product_master_items:
-            # Key for uniqueness in this dialog's listbox (model, product, spec)
-            item_tuple_key_for_dialog = (item_obj.model_name, item_obj.product_name, item_obj.spec)
+            item_tuple_key_for_dialog = (storage.normalize_text(item_obj.model_name), storage.normalize_text(item_obj.product_name), storage.normalize_text(item_obj.spec))
             item_str_key_for_dialog = storage.ITEM_KEY_SEPARATOR.join(item_tuple_key_for_dialog)
-
-            if item_str_key_for_dialog in unique_item_keys_in_listbox:
-                continue # Already added this unique item (model/product/spec combination)
-
+            if item_str_key_for_dialog in unique_item_keys_in_listbox: continue
             display_text = f"{item_obj.product_name} ({item_obj.model_name} / {item_obj.spec})"
             passes_search = not search_term or any(st in s.lower() for s in [item_obj.model_name, item_obj.product_name, item_obj.spec, display_text] for st in search_term.split() if st)
-            
             if passes_search:
                 self.item_listbox.insert(tk.END, display_text)
-                self.dialog_item_map[display_text] = item_tuple_key_for_dialog # Map display to tuple key
+                self.dialog_item_map[display_text] = item_tuple_key_for_dialog
                 unique_item_keys_in_listbox.add(item_str_key_for_dialog)
-        
         if self.item_listbox.size() > 0: self.item_listbox.selection_set(0)
-
 
     def _filter_dialog_items(self, event=None):
         if self.item_listbox: self._populate_dialog_item_listbox(self.item_search_var.get())
@@ -1164,10 +1007,9 @@ class EditProfileItemPriceDialog(simpledialog.Dialog):
         box.pack(pady=5)
 
     def validate(self):
-        if not self.existing_item_key_str: # If adding new
+        if not self.existing_item_key_str: 
             if not self.item_listbox or not self.item_listbox.curselection():
                 messagebox.showwarning("품목 미선택", "프로파일에 추가할 품목을 선택해주세요.", parent=self); return False
-        
         price_str = self.new_price_var.get().strip()
         if not price_str: 
             messagebox.showwarning("가격 오류", "단가를 입력해주세요.", parent=self); return False
@@ -1181,20 +1023,17 @@ class EditProfileItemPriceDialog(simpledialog.Dialog):
 
     def apply(self):
         item_key_tuple_to_return: Optional[tuple[str,str,str]] = None
-        
-        if not self.existing_item_key_str: # Adding new item
+        if not self.existing_item_key_str: 
             if self.item_listbox and self.item_listbox.curselection():
                 selected_display_name = self.item_listbox.get(self.item_listbox.curselection()[0])
                 item_key_tuple_to_return = self.dialog_item_map.get(selected_display_name)
-        else: # Editing existing item
+        else: 
             key_parts = self.existing_item_key_str.split(storage.ITEM_KEY_SEPARATOR)
             if len(key_parts) == 3: 
-                item_key_tuple_to_return = (key_parts[0], key_parts[1], key_parts[2])
-        
+                item_key_tuple_to_return = (storage.normalize_text(key_parts[0]), storage.normalize_text(key_parts[1]), storage.normalize_text(key_parts[2]))
         if not item_key_tuple_to_return: 
             messagebox.showerror("오류", "품목 키를 결정할 수 없습니다.", parent=self); self.result = None; return
-            
-        self.selected_item_key_str = storage.ITEM_KEY_SEPARATOR.join(item_key_tuple_to_return)
+        self.selected_item_key_str = storage.ITEM_KEY_SEPARATOR.join(item_key_tuple_to_return) # Removed map(str, ...) as parts are already strings
         self.result = (self.selected_item_key_str, Decimal(self.new_price_var.get().strip()))
 
 def main():
