@@ -7,7 +7,7 @@ from typing import List, Dict, Any, Optional, Tuple # Added Tuple
 from models import Company, Item, PriceTier, PriceProfile # Added PriceProfile
 
 COMPANY_DATA_FILE = "data.json"
-PRICE_PROFILES_FILE = "price_profiles.json" # New file for price profiles
+PRICE_PROFILES_FILE = "prices_for_companies.json" # Use company-specific prices file
 ITEM_KEY_SEPARATOR = "|" # For converting tuple keys to string
 # The actual default path for product master will be handled by the main application,
 # possibly pointing to a bundled file or a user-configurable path.
@@ -73,95 +73,79 @@ def get_initial_companies() -> List[Company]:
 
 def load_companies() -> List[Company]:
     """
-    Loads company data. Tries user data dir, then bundled file (if exists), 
+    Loads company data. Tries user data dir, then bundled file (if exists),
     then creates initial data.
     """
     user_file_path = get_user_data_path(COMPANY_DATA_FILE)
     path_to_load_from = None
-    loaded_from_bundle_and_copied = False
 
     if os.path.exists(user_file_path):
         path_to_load_from = user_file_path
-        # print(f"Loading company data from user path: {user_file_path}")
     else:
-        # Try to load from bundle if it exists and copy to user dir for future use
         if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
             bundle_dir = get_bundle_dir()
             bundled_file_path = os.path.join(bundle_dir, COMPANY_DATA_FILE)
             if os.path.exists(bundled_file_path):
-                # print(f"Loading company data from bundled path: {bundled_file_path} and copying to user dir.")
                 try:
                     os.makedirs(os.path.dirname(user_file_path), exist_ok=True)
                     shutil.copy2(bundled_file_path, user_file_path)
-                    path_to_load_from = user_file_path # Load from the new copy in user dir
-                    loaded_from_bundle_and_copied = True
+                    path_to_load_from = user_file_path
                 except Exception as e_copy:
                     print(f"Error copying bundled company data to user dir: {e_copy}. Will try to load directly from bundle.")
-                    path_to_load_from = bundled_file_path # Fallback to loading directly from bundle
-            # else: print(f"Bundled company data file not found at {bundled_file_path}")
+                    path_to_load_from = bundled_file_path
         
-        if not path_to_load_from: # Not in user dir, and not found/loaded from bundle
+        if not path_to_load_from: # Still no path, means not in user dir and not (found or copied) from bundle
             print(f"'{user_file_path}' 및 번들에서 회사 데이터를 찾을 수 없어 초기 데이터로 생성합니다.")
             initial_companies = get_initial_companies()
-            save_companies(initial_companies) # This will save to user_file_path
+            save_companies(initial_companies) 
             return initial_companies
 
-    # If path_to_load_from is still None here, it means it wasn't found in user or bundle,
-    # and initial data should have been created and returned. This block should only execute if a file is to be loaded.
     if not path_to_load_from:
-         # This case should ideally be covered by the logic above creating initial data.
-         # If somehow reached, return empty or re-create initial.
-        print(f"회사 데이터 파일을 찾을 수 없습니다. 초기 데이터로 다시 시도합니다.")
+        # This case should ideally not be reached if the logic above is sound.
+        # If it is, it means something went wrong determining a path, so create defaults.
+        print(f"회사 데이터 파일을 로드할 경로를 결정하지 못했습니다. 초기 데이터로 생성합니다.")
         initial_companies = get_initial_companies()
         save_companies(initial_companies)
         return initial_companies
 
     try:
-        # If we loaded from bundle and copied, we are reading the copy from user_file_path.
-        # If we fell back to loading directly from bundle (due to copy error), path_to_load_from is bundled_file_path.
         with open(path_to_load_from, 'r', encoding='utf-8') as f:
             data = json.load(f)
->>>>>>> REPLACE
 
-            # 이전 data.json은 {"companies": [...], "items": [...]} 구조였을 수 있음
-            # 새 구조는 그냥 [...] 리스트 형태 또는 {"companies": [...]}
-            companies_data_list: Optional[List[Dict[str, Any]]] = None
-            if isinstance(data, list): # 최상위가 리스트인 경우 (새로운 단순 형식)
-                 companies_data_list = data
-            elif isinstance(data, dict) and "companies" in data: # 이전 형식 호환
-                 companies_data_list = data.get("companies")
-            else: # 알 수 없는 형식
-                print(f"Warning: '{user_file_path}' has an unexpected format. Attempting to reset.")
-                raise ValueError("Malformed company data: unknown format.")
+        companies_data_list: Optional[List[Dict[str, Any]]] = None
+        if isinstance(data, list):
+            companies_data_list = data
+        elif isinstance(data, dict) and "companies" in data:
+            companies_data_list = data.get("companies")
+        else:
+            print(f"Warning: '{path_to_load_from}' has an unexpected format. Attempting to reset.")
+            raise ValueError("Malformed company data: unknown format.")
 
+        if not isinstance(companies_data_list, list):
+            print(f"Warning: Company data in '{path_to_load_from}' is not a list. Will attempt to reset to initial data.")
+            raise ValueError("Malformed company data: not a list.")
 
-            if not isinstance(companies_data_list, list):
-                print(f"Warning: Company data in '{user_file_path}' is not a list. Will attempt to reset to initial data.")
-                raise ValueError("Malformed company data: not a list.")
-
-            parsed_companies = []
-            for c_data in companies_data_list:
-                if not isinstance(c_data, dict):
-                    print(f"Warning: Skipping non-dictionary company entry in '{user_file_path}': {c_data}")
+        parsed_companies = []
+        for c_data in companies_data_list:
+            if not isinstance(c_data, dict):
+                print(f"Warning: Skipping non-dictionary company entry in '{path_to_load_from}': {c_data}")
+                continue
+            try:
+                if "name" not in c_data:
+                    print(f"Warning: Skipping company entry with missing 'name' in '{path_to_load_from}': {c_data}")
                     continue
-                try:
-                    # 필수 필드 확인 (예: name)
-                    if "name" not in c_data:
-                        print(f"Warning: Skipping company entry with missing 'name' in '{user_file_path}': {c_data}")
-                        continue
-                    parsed_companies.append(_dict_to_company(c_data))
-                except KeyError as ke:
-                    print(f"Warning: Skipping company entry with missing key in '{user_file_path}': {c_data}. Error: {ke}")
-                    continue
+                parsed_companies.append(_dict_to_company(c_data))
+            except KeyError as ke:
+                print(f"Warning: Skipping company entry with missing key in '{path_to_load_from}': {c_data}. Error: {ke}")
+                continue
+        return parsed_companies
             
-            return parsed_companies
-            
-    except Exception as e: # Catch broader exceptions
-        print(f"'{user_file_path}' 로드 또는 파싱 중 오류 발생 ({type(e).__name__}: {e}). 초기 데이터로 대체합니다.")
+    except Exception as e:
+        print(f"'{path_to_load_from}' 로드 또는 파싱 중 오류 발생 ({type(e).__name__}: {e}). 초기 데이터로 대체합니다.")
         initial_companies = get_initial_companies()
         try:
-            save_companies(initial_companies) # 오류 발생 시 초기 데이터로 덮어쓰고 로드
-            print(f"'{COMPANY_DATA_FILE}'이(가) 초기 데이터로 성공적으로 재작성되었습니다.")
+            save_companies(initial_companies)
+            print(f"'{COMPANY_DATA_FILE}'이(가) 초기 데이터로 성공적으로 재작성되었습니다 (위치: {user_file_path}).")
             return initial_companies
         except Exception as e_fallback:
             print(f"초기 데이터로 대체하는 중 심각한 오류 발생: {e_fallback}. 빈 리스트를 반환합니다.")
@@ -222,33 +206,43 @@ def _dict_to_price_profile(data: Dict[str, Any]) -> PriceProfile:
     )
 
 def load_price_profiles() -> List[PriceProfile]:
-    """Loads price profiles. Tries user data dir, then bundled file, then empty."""
+    """
+    Loads price profiles.
+    1. Tries user-specific data directory.
+    2. If not found, tries source/bundle directory.
+       - If found in source/bundle, attempts to copy to user-specific directory for future use.
+       - Loads from the (newly copied) user path or directly from source/bundle if copy fails.
+    3. If not found anywhere, returns an empty list.
+    """
     user_file_path = get_user_data_path(PRICE_PROFILES_FILE)
-    
     path_to_load_from = None
 
     if os.path.exists(user_file_path):
         path_to_load_from = user_file_path
-        # print(f"Loading price profiles from user path: {user_file_path}")
+        print(f"Loading price profiles from user path: {user_file_path}")
     else:
-        # Try to load from bundle if it exists and copy to user dir for future use
-        if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
-            bundle_dir = get_bundle_dir()
-            bundled_file_path = os.path.join(bundle_dir, PRICE_PROFILES_FILE) # PRICE_PROFILES_FILE is "price_profiles.json"
-            if os.path.exists(bundled_file_path):
-                # print(f"Loading price profiles from bundled path: {bundled_file_path} and copying to user dir.")
-                try:
-                    os.makedirs(os.path.dirname(user_file_path), exist_ok=True)
-                    shutil.copy2(bundled_file_path, user_file_path)
-                    path_to_load_from = user_file_path # Load from the new copy in user dir
-                except Exception as e_copy:
-                    print(f"Error copying bundled price profiles to user dir: {e_copy}. Will try to load directly from bundle.")
-                    path_to_load_from = bundled_file_path # Fallback to loading directly from bundle
-            # else: print(f"Bundled price profiles file not found at {bundled_file_path}")
-        # else: print("Not running bundled, and no user price profiles file found.")
+        # If not in user_data_path, try to find it in the source/bundle directory
+        source_dir = get_bundle_dir() # sys._MEIPASS if frozen, else script's directory
+        source_file_path = os.path.join(source_dir, PRICE_PROFILES_FILE)
 
+        if os.path.exists(source_file_path):
+            print(f"Found '{PRICE_PROFILES_FILE}' at source/bundle path: {source_file_path}")
+            # Attempt to copy to user data directory for future use
+            try:
+                os.makedirs(os.path.dirname(user_file_path), exist_ok=True)
+                shutil.copy2(source_file_path, user_file_path)
+                path_to_load_from = user_file_path # Load from the new copy
+                print(f"Copied '{PRICE_PROFILES_FILE}' to user path: {user_file_path} and loading from there.")
+            except Exception as e_copy:
+                print(f"Error copying '{PRICE_PROFILES_FILE}' from '{source_file_path}' to '{user_file_path}': {e_copy}. Will load directly from source/bundle path.")
+                path_to_load_from = source_file_path # Fallback to loading directly
+        else:
+            # File not found in user_data_path AND not in source/bundle_dir.
+            print(f"'{PRICE_PROFILES_FILE}' not found in user data path ('{user_file_path}') or source/bundle path ('{source_file_path}').")
+            # For price profiles, if the primary file is missing, we don't create a default one.
+            
     if not path_to_load_from:
-        # print(f"No price profiles file found at user path or in bundle. Returning empty list.")
+        print(f"No price profiles file to load. Returning empty list.")
         return []
 
     try:

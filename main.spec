@@ -5,7 +5,7 @@ a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
-    datas=[('price_profiles.json', '.'), ('데이터파일/item_data.json', '데이터파일')],
+    datas=[('데이터파일/item_data.json', '데이터파일'), ('prices_for_companies.json', '.')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
