@@ -1,0 +1,37 @@
+[
+    {
+        "id": "cdd8b500-9e3e-4c14-8dcb-7726bd7591b1",
+        "name": "BTS 365",
+        "price_tier": "CUSTOM",
+        "contact": null,
+        "custom_price_profile_id": "e8ee62a5-22f2-42e0-9dad-e0adbc1fbde3"
+    },
+    {
+        "id": "bdacda94-fbe7-46c6-a132-61f085e8d7c7",
+        "name": "Y준 메디컬",
+        "price_tier": "CUSTOM",
+        "contact": null,
+        "custom_price_profile_id": "c34fc636-677e-40ee-aeb5-bcf06d842c90"
+    },
+    {
+        "id": "28c1fcbe-248a-441b-8272-29c8bb06dd7d",
+        "name": "JKL 더서울",
+        "price_tier": "CUSTOM",
+        "contact": null,
+        "custom_price_profile_id": "92134588-85c6-4f23-9438-0ec8e1724a6f"
+    },
+    {
+        "id": "556357bd-cdd2-48cb-8b30-2b788251602f",
+        "name": "JKL 희명",
+        "price_tier": "CUSTOM",
+        "contact": null,
+        "custom_price_profile_id": "5ef0e37a-d759-4ea9-8fd5-fd2e1579c6d0"
+    },
+    {
+        "id": "0b99c447-1629-45c0-a4dd-2ac32f4c4a31",
+        "name": "테스트",
+        "price_tier": "PURCHASE",
+        "contact": null,
+        "custom_price_profile_id": null
+    }
+]

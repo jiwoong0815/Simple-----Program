@@ -243,8 +243,14 @@ class App(tk.Tk):
         unique_representative_items: Dict[tuple, Item] = {}
         for item_obj in self.product_master_items:
             passes_search = False
-            if not search_term or any(st in s.lower() for s in [item_obj.lot, item_obj.model_name, item_obj.product_name, item_obj.spec] for st in search_term.split() if st):
+            if not search_term:
                 passes_search = True
+            else:
+                search_words = [st for st in search_term.split() if st]
+                item_searchable_content = f"{item_obj.lot} {item_obj.model_name} {item_obj.product_name} {item_obj.spec}".lower()
+                if all(word in item_searchable_content for word in search_words):
+                    passes_search = True
+            
             if passes_search:
                 item_key = (item_obj.model_name, item_obj.product_name, item_obj.spec, item_obj.treatment_code, item_obj.udi_di)
                 if item_key not in unique_representative_items: unique_representative_items[item_key] = item_obj
@@ -622,7 +628,17 @@ class App(tk.Tk):
         if not hasattr(self, 'product_viewer_tree'): return
         for i in self.product_viewer_tree.get_children(): self.product_viewer_tree.delete(i)
         search_term = self.product_viewer_search_var.get().lower()
-        filtered_items = [item for item in self.product_master_items if not search_term or any(search_term in s.lower() for s in [item.lot, item.model_name, item.product_name, item.spec])]
+        
+        filtered_items = []
+        if not search_term:
+            filtered_items = self.product_master_items
+        else:
+            search_words = [st for st in search_term.split() if st]
+            for item in self.product_master_items:
+                item_searchable_content = f"{item.lot} {item.model_name} {item.product_name} {item.spec}".lower()
+                if all(word in item_searchable_content for word in search_words):
+                    filtered_items.append(item)
+
         sorted_items_for_display = sorted(filtered_items, key=lambda item: item.product_name)
         for item in sorted_items_for_display:
             values = (item.lot, item.model_name, item.product_name, item.spec, item.treatment_code, item.udi_di, f"{item.prices.get(PriceTier.PURCHASE.value, ''):,.0f}", f"{item.prices.get(PriceTier.A.value, ''):,.0f}", f"{item.prices.get(PriceTier.B.value, ''):,.0f}", f"{item.prices.get(PriceTier.DEALER.value, ''):,.0f}", f"{item.prices.get(PriceTier.MEDICAL.value, ''):,.0f}")
@@ -989,7 +1005,9 @@ class EditProfileItemPriceDialog(simpledialog.Dialog):
             item_str_key_for_dialog = storage.ITEM_KEY_SEPARATOR.join(item_tuple_key_for_dialog)
             if item_str_key_for_dialog in unique_item_keys_in_listbox: continue
             display_text = f"{item_obj.product_name} ({item_obj.model_name} / {item_obj.spec})"
-            passes_search = not search_term or any(st in s.lower() for s in [item_obj.model_name, item_obj.product_name, item_obj.spec, display_text] for st in search_term.split() if st)
+            search_words = [st for st in search_term.split() if st]
+            item_searchable_content = f"{item_obj.model_name} {item_obj.product_name} {item_obj.spec} {display_text}".lower()
+            passes_search = not search_words or all(word in item_searchable_content for word in search_words)
             if passes_search:
                 self.item_listbox.insert(tk.END, display_text)
                 self.dialog_item_map[display_text] = item_tuple_key_for_dialog
