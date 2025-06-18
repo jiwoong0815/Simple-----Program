@@ -1,0 +1,9 @@
+"""
+# 기존 requirements.txt에 추가할 내용
+easyocr>=1.7.0
+opencv-python>=4.8.0
+Pillow>=10.0.0
+pytesseract>=0.3.10
+torch>=2.0.0
+torchvision>=0.15.0
+"""
