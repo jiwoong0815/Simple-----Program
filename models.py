@@ -131,6 +131,15 @@ class InvoiceLine:
         """보험수가 (치료재료단가와 동일하다고 가정)"""
         return self.item.prices.get(PriceTier.MEDICAL.value)
 
+@dataclass
+class InvoiceRecord:
+    """생성된 거래명세서 기록을 담는 데이터 클래스"""
+    id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    invoice_date: str = "" # "YYYY-MM-DD"
+    company_name: str = ""
+    invoice_lines: List[InvoiceLine] = field(default_factory=list)
+    total_amount: Decimal = Decimal("0")
+    created_at: str = "" # ISO 8601 format
 
 if __name__ == '__main__':
     # 테스트용 예시

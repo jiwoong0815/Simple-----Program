@@ -214,11 +214,21 @@ def create_invoice_excel(
         safe_company_name = "invoice"
     
     filename_date_str = current_dt.strftime('%Y%m%d')
-    filename = f"{filename_date_str}_{safe_company_name}_invoice.xlsx"
+    base_filename = f"{filename_date_str}_{safe_company_name}_invoice"
+    filename_ext = ".xlsx"
     
+    # 파일명 중복 체크 및 넘버링
+    counter = 1
+    filename = f"{base_filename}{filename_ext}"
+    filepath = os.path.join(os.getcwd(), filename)
+    
+    while os.path.exists(filepath):
+        filename = f"{base_filename}_{counter}{filename_ext}"
+        filepath = os.path.join(os.getcwd(), filename)
+        counter += 1
+
     try:
         # 프로그램 실행 위치에 저장
-        filepath = os.path.join(os.getcwd(), filename)
         wb.save(filepath)
         print(f"거래명세서가 '{filepath}'에 저장되었습니다.")
         return filepath

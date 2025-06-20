@@ -4,10 +4,11 @@ import sys # Added sys
 import shutil # Added shutil
 from decimal import Decimal, InvalidOperation
 from typing import List, Dict, Any, Optional, Tuple # Added Tuple
-from models import Company, Item, PriceTier, PriceProfile # Added PriceProfile
+from models import Company, Item, PriceTier, PriceProfile, InvoiceRecord, InvoiceLine
 
 COMPANY_DATA_FILE = "data.json"
 PRICE_PROFILES_FILE = "prices_for_companies.json" # Use company-specific prices file
+INVOICE_HISTORY_FILE = "invoice_history.json"
 ITEM_KEY_SEPARATOR = "|" # For converting tuple keys to string
 # The actual default path for product master will be handled by the main application,
 # possibly pointing to a bundled file or a user-configurable path.
@@ -292,6 +293,91 @@ def save_price_profiles(profiles: List[PriceProfile]):
         print(f"'{user_file_path}' 저장 중 오류 발생: {e}")
     except Exception as e_general: # Catch other potential errors like makedirs failing
         print(f"가격 프로파일 저장 중 일반 오류 발생 ({user_file_path}): {e_general}")
+
+# --- Invoice History Persistence ---
+
+def _item_to_dict(item: Item) -> Dict[str, Any]:
+    return {
+        "lot": item.lot,
+        "model_name": item.model_name,
+        "product_name": item.product_name,
+        "spec": item.spec,
+        "treatment_code": item.treatment_code,
+        "udi_di": item.udi_di,
+        "prices": {k: str(v) for k, v in item.prices.items()}
+    }
+
+def _dict_to_item(data: Dict[str, Any]) -> Item:
+    return Item(
+        lot=data["lot"],
+        model_name=data["model_name"],
+        product_name=data["product_name"],
+        spec=data["spec"],
+        treatment_code=data["treatment_code"],
+        udi_di=data.get("udi_di"),
+        prices={k: Decimal(v) for k, v in data.get("prices", {}).items()}
+    )
+
+def _invoice_line_to_dict(line: InvoiceLine) -> Dict[str, Any]:
+    return {
+        "item": _item_to_dict(line.item),
+        "qty": line.qty,
+        "unit_price": str(line.unit_price)
+    }
+
+def _dict_to_invoice_line(data: Dict[str, Any]) -> InvoiceLine:
+    return InvoiceLine(
+        item=_dict_to_item(data["item"]),
+        qty=data["qty"],
+        unit_price=Decimal(data["unit_price"])
+    )
+
+def _invoice_record_to_dict(record: InvoiceRecord) -> Dict[str, Any]:
+    return {
+        "id": record.id,
+        "invoice_date": record.invoice_date,
+        "company_name": record.company_name,
+        "invoice_lines": [_invoice_line_to_dict(line) for line in record.invoice_lines],
+        "total_amount": str(record.total_amount),
+        "created_at": record.created_at
+    }
+
+def _dict_to_invoice_record(data: Dict[str, Any]) -> InvoiceRecord:
+    return InvoiceRecord(
+        id=data["id"],
+        invoice_date=data["invoice_date"],
+        company_name=data["company_name"],
+        invoice_lines=[_dict_to_invoice_line(line_data) for line_data in data["invoice_lines"]],
+        total_amount=Decimal(data["total_amount"]),
+        created_at=data["created_at"]
+    )
+
+def load_invoice_history() -> List[InvoiceRecord]:
+    """Loads invoice history from the user-specific data directory."""
+    history_file_path = get_user_data_path(INVOICE_HISTORY_FILE)
+    if not os.path.exists(history_file_path):
+        return []
+    try:
+        with open(history_file_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        if not isinstance(data, list):
+            print(f"Warning: Invoice history file '{history_file_path}' has an unexpected format.")
+            return []
+        return [_dict_to_invoice_record(record_data) for record_data in data]
+    except Exception as e:
+        print(f"Error loading invoice history from '{history_file_path}': {e}")
+        return []
+
+def save_invoice_history(history: List[InvoiceRecord]):
+    """Saves the entire invoice history to the user-specific data directory."""
+    history_file_path = get_user_data_path(INVOICE_HISTORY_FILE)
+    data_to_save = [_invoice_record_to_dict(record) for record in history]
+    try:
+        os.makedirs(os.path.dirname(history_file_path), exist_ok=True)
+        with open(history_file_path, 'w', encoding='utf-8') as f:
+            json.dump(data_to_save, f, ensure_ascii=False, indent=4)
+    except Exception as e:
+        print(f"Error saving invoice history to '{history_file_path}': {e}")
 
 # --- Product Master Data Loading (External JSON) ---
 

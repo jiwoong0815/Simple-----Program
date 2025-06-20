@@ -7,7 +7,7 @@ import datetime
 from typing import List, Optional, Dict, Any
 from decimal import Decimal, InvalidOperation
 
-from models import Company, Item, InvoiceLine, PriceTier, PriceProfile
+from models import Company, Item, InvoiceLine, PriceTier, PriceProfile, InvoiceRecord
 import storage
 import invoice
 
@@ -28,6 +28,7 @@ class App(tk.Tk):
 
         self.companies: List[Company] = storage.load_companies()
         self.price_profiles: List[PriceProfile] = storage.load_price_profiles()
+        self.invoice_history: List[InvoiceRecord] = storage.load_invoice_history()
         self.product_master_items: List[Item] = []
 
         bundle_dir = get_bundle_dir()
@@ -67,14 +68,17 @@ class App(tk.Tk):
         self._create_main_menu()
         self.notebook = ttk.Notebook(self)
         self.invoice_tab = ttk.Frame(self.notebook)
+        self.history_tab = ttk.Frame(self.notebook)
         self.company_management_tab = ttk.Frame(self.notebook)
         self.price_profile_management_tab = ttk.Frame(self.notebook)
         self.product_viewer_tab = ttk.Frame(self.notebook) 
         self.notebook.add(self.invoice_tab, text="거래명세서 작성")
+        self.notebook.add(self.history_tab, text="기록")
         self.notebook.add(self.company_management_tab, text="거래처 관리")
         self.notebook.add(self.price_profile_management_tab, text="단가 프로파일 관리")
         self.notebook.add(self.product_viewer_tab, text="제품 마스터 조회") 
         self._create_invoice_tab() 
+        self._create_history_tab()
         self._create_company_management_tab()
         self._create_price_profile_management_tab()
         self._create_product_viewer_tab() 
@@ -127,6 +131,7 @@ class App(tk.Tk):
         if messagebox.askokcancel("종료 확인", "프로그램을 종료하시겠습니까? 변경사항이 저장됩니다."):
             storage.save_companies(self.companies)
             storage.save_price_profiles(self.price_profiles)
+            storage.save_invoice_history(self.invoice_history)
             self.destroy()
 
     def _create_invoice_tab(self):
@@ -366,10 +371,195 @@ class App(tk.Tk):
         except ValueError: messagebox.showerror("날짜 오류", "명세서 날짜 형식이 잘못되었습니다. (YYYY-MM-DD)"); return
         filepath = invoice.create_invoice_excel(company=self.selected_company_for_invoice, invoice_lines=self.current_invoice_lines, invoice_date=invoice_dt)
         if filepath:
+            # Save to history
+            total_supply = sum(line.supply_amount for line in self.current_invoice_lines)
+            total_vat = sum(line.vat for line in self.current_invoice_lines)
+            grand_total = total_supply + total_vat
+            
+            new_record = InvoiceRecord(
+                invoice_date=date_str,
+                company_name=self.selected_company_for_invoice.name,
+                invoice_lines=[line for line in self.current_invoice_lines], # Copy
+                total_amount=grand_total,
+                created_at=datetime.datetime.now().isoformat()
+            )
+            self.invoice_history.insert(0, new_record) # Add to the beginning
+            storage.save_invoice_history(self.invoice_history)
+            self._refresh_history_listbox()
+
             msg = f"거래명세서가 성공적으로 생성되었습니다:\n{filepath}"
             if messagebox.askyesno("성공", f"{msg}\n\n생성된 명세서 파일이 있는 폴더를 여시겠습니까?"): invoice.open_file_explorer(filepath)
-            self._clear_invoice() 
+            self._clear_invoice()
         else: messagebox.showerror("실패", "거래명세서 생성에 실패했습니다.")
+
+    def _create_history_tab(self):
+        tab = self.history_tab
+        
+        # Left frame for the list of records
+        history_list_frame = ttk.LabelFrame(tab, text="거래명세서 생성 기록")
+        history_list_frame.pack(side="left", fill="y", padx=10, pady=10)
+        
+        self.history_listbox = tk.Listbox(history_list_frame, exportselection=False, width=40, height=25)
+        self.history_listbox.pack(side="left", fill="y")
+        
+        history_scrollbar = ttk.Scrollbar(history_list_frame, orient="vertical", command=self.history_listbox.yview)
+        history_scrollbar.pack(side="right", fill="y")
+        self.history_listbox.config(yscrollcommand=history_scrollbar.set)
+        self.history_listbox.bind("<<ListboxSelect>>", self._on_history_record_selected)
+
+        # Right frame for details of the selected record
+        history_details_frame = ttk.LabelFrame(tab, text="선택된 기록 상세 정보")
+        history_details_frame.pack(side="left", fill="both", expand=True, padx=10, pady=10)
+
+        # Details widgets
+        ttk.Label(history_details_frame, text="거래처:").grid(row=0, column=0, padx=5, pady=5, sticky="w")
+        self.history_company_name_var = tk.StringVar()
+        ttk.Entry(history_details_frame, textvariable=self.history_company_name_var, state="readonly").grid(row=0, column=1, padx=5, pady=5, sticky="ew")
+
+        ttk.Label(history_details_frame, text="발행일:").grid(row=1, column=0, padx=5, pady=5, sticky="w")
+        self.history_date_var = tk.StringVar()
+        ttk.Entry(history_details_frame, textvariable=self.history_date_var, state="readonly").grid(row=1, column=1, padx=5, pady=5, sticky="ew")
+
+        ttk.Label(history_details_frame, text="총액:").grid(row=2, column=0, padx=5, pady=5, sticky="w")
+        self.history_total_var = tk.StringVar()
+        ttk.Entry(history_details_frame, textvariable=self.history_total_var, state="readonly").grid(row=2, column=1, padx=5, pady=5, sticky="ew")
+
+        # Treeview for items in the selected record
+        item_tree_frame = ttk.LabelFrame(history_details_frame, text="포함된 품목")
+        item_tree_frame.grid(row=3, column=0, columnspan=2, sticky="nsew", padx=5, pady=10)
+        history_details_frame.grid_rowconfigure(3, weight=1)
+        history_details_frame.grid_columnconfigure(1, weight=1)
+
+        columns = ("lot", "product_name", "spec", "qty", "unit_price", "supply_amount")
+        self.history_item_tree = ttk.Treeview(item_tree_frame, columns=columns, show="headings", height=10)
+        header_texts = ["LOT", "제품명", "규격", "수량", "단가", "공급가액"]
+        col_widths = [100, 180, 120, 70, 90, 90]
+        for i, col_id in enumerate(columns):
+            self.history_item_tree.heading(col_id, text=header_texts[i])
+            self.history_item_tree.column(col_id, width=col_widths[i], anchor='w' if i < 3 else 'e')
+        
+        tree_scrollbar = ttk.Scrollbar(item_tree_frame, orient="vertical", command=self.history_item_tree.yview)
+        self.history_item_tree.configure(yscrollcommand=tree_scrollbar.set)
+        tree_scrollbar.pack(side="right", fill="y")
+        self.history_item_tree.pack(side="left", fill="both", expand=True)
+
+        # Action buttons for the history tab
+        action_buttons_frame = ttk.Frame(history_details_frame)
+        action_buttons_frame.grid(row=4, column=0, columnspan=2, pady=10)
+        
+        ttk.Button(action_buttons_frame, text="불러오기", command=self._load_history_record).pack(side="left", padx=5)
+        ttk.Button(action_buttons_frame, text="선택 기록 삭제", command=self._delete_history_record).pack(side="left", padx=5)
+        ttk.Button(action_buttons_frame, text="전체 기록 삭제", command=self._delete_all_history_records).pack(side="left", padx=5)
+
+        self._refresh_history_listbox()
+
+    def _load_history_record(self):
+        selected_indices = self.history_listbox.curselection()
+        if not selected_indices:
+            messagebox.showwarning("기록 미선택", "불러올 기록을 선택해주세요.", parent=self)
+            return
+
+        if self.current_invoice_lines:
+            if not messagebox.askyesno("불러오기 확인", "현재 작성 중인 명세서 내용이 있습니다. 불러오면 현재 내용은 지워집니다. 계속하시겠습니까?", parent=self):
+                return
+
+        selected_index = selected_indices[0]
+        record = self.invoice_history[selected_index]
+
+        # Find the corresponding company object
+        target_company = next((c for c in self.companies if c.name == record.company_name), None)
+        if not target_company:
+            messagebox.showerror("오류", f"'{record.company_name}' 거래처를 찾을 수 없습니다. 거래처 관리 탭에서 해당 거래처가 존재하는지 확인해주세요.", parent=self)
+            return
+        
+        # Set the company in the invoice tab
+        for i, value in enumerate(self.invoice_company_combo['values']):
+            if record.company_name in value:
+                self.invoice_company_combo.current(i)
+                break
+        self.selected_company_for_invoice = target_company
+
+        # Load the items
+        self.current_invoice_lines = [line for line in record.invoice_lines] # Make a copy
+        self.invoice_date_var.set(record.invoice_date)
+        
+        self._refresh_invoice_tree()
+        self._update_invoice_total_sum()
+        
+        self.notebook.select(self.invoice_tab)
+        messagebox.showinfo("성공", "선택한 기록을 거래명세서 작성 탭으로 불러왔습니다.", parent=self)
+
+    def _delete_history_record(self):
+        selected_indices = self.history_listbox.curselection()
+        if not selected_indices:
+            messagebox.showwarning("기록 미선택", "삭제할 기록을 선택해주세요.", parent=self)
+            return
+        
+        if messagebox.askyesno("삭제 확인", "선택된 기록을 정말로 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.", parent=self):
+            selected_index = selected_indices[0]
+            del self.invoice_history[selected_index]
+            storage.save_invoice_history(self.invoice_history)
+            self._refresh_history_listbox()
+            messagebox.showinfo("성공", "선택된 기록이 삭제되었습니다.", parent=self)
+
+    def _delete_all_history_records(self):
+        if not self.invoice_history:
+            messagebox.showinfo("알림", "삭제할 기록이 없습니다.", parent=self)
+            return
+
+        if messagebox.askyesno("전체 삭제 확인", "모든 기록을 정말로 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.", parent=self):
+            self.invoice_history.clear()
+            storage.save_invoice_history(self.invoice_history)
+            self._refresh_history_listbox()
+            messagebox.showinfo("성공", "모든 기록이 삭제되었습니다.", parent=self)
+
+    def _refresh_history_listbox(self):
+        self.history_listbox.delete(0, tk.END)
+        # Sort history from newest to oldest
+        sorted_history = sorted(self.invoice_history, key=lambda r: r.created_at, reverse=True)
+        self.invoice_history = sorted_history
+
+        for record in self.invoice_history:
+            display_text = f"{record.invoice_date} - {record.company_name} ({record.total_amount:,.0f}원)"
+            self.history_listbox.insert(tk.END, display_text)
+        
+        self._clear_history_details()
+
+    def _on_history_record_selected(self, event):
+        selected_indices = self.history_listbox.curselection()
+        if not selected_indices:
+            self._clear_history_details()
+            return
+        
+        selected_index = selected_indices[0]
+        record = self.invoice_history[selected_index]
+
+        self.history_company_name_var.set(record.company_name)
+        self.history_date_var.set(record.invoice_date)
+        self.history_total_var.set(f"{record.total_amount:,.0f} 원")
+
+        # Populate the item tree
+        for i in self.history_item_tree.get_children():
+            self.history_item_tree.delete(i)
+        
+        for line in record.invoice_lines:
+            values = (
+                line.lot,
+                line.product_name,
+                line.spec,
+                line.qty,
+                f"{line.unit_price:,.0f}",
+                f"{line.supply_amount:,.0f}"
+            )
+            self.history_item_tree.insert("", tk.END, values=values)
+
+    def _clear_history_details(self):
+        self.history_company_name_var.set("")
+        self.history_date_var.set("")
+        self.history_total_var.set("")
+        for i in self.history_item_tree.get_children():
+            self.history_item_tree.delete(i)
+        self.history_listbox.selection_clear(0, tk.END)
 
     def _on_invoice_item_double_click_for_edit(self, event):
         if hasattr(self, '_invoice_qty_edit_entry') and self._invoice_qty_edit_entry:
